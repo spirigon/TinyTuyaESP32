@@ -1,0 +1,10 @@
+TinyTuya	KEYWORD1
+TinyTuyaFsm	KEYWORD1
+TuyaScanner	KEYWORD1
+tuya_device_t	KEYWORD1
+tuya_status	KEYWORD2
+tuya_set_bool	KEYWORD2
+tuya_set_int	KEYWORD2
+tuya_set_string	KEYWORD2
+tuya_scanner_scan	KEYWORD2
+TUYA_OK	LITERAL1

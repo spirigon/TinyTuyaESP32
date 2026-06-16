@@ -1,0 +1,11 @@
+.pio/
+.vscode/
+.idea/
+build/
+*.elf
+*.bin
+*.map
+*.hex
+*.log
+docs/html/*
+!docs/html/README.md
