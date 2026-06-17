@@ -4,6 +4,7 @@
 #include <WiFiClient.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "tuya_crypto.h"
@@ -13,6 +14,23 @@
 #include "tuya_session.h"
 
 static const uint8_t VERSION_31[] = {'3', '.', '1'};
+
+class HeapBuffer {
+public:
+    explicit HeapBuffer(size_t size) : data_(static_cast<uint8_t *>(malloc(size))), size_(size) {}
+    ~HeapBuffer() { free(data_); }
+
+    HeapBuffer(const HeapBuffer &) = delete;
+    HeapBuffer &operator=(const HeapBuffer &) = delete;
+
+    uint8_t *data() { return data_; }
+    size_t size() const { return size_; }
+    bool ok() const { return data_ != nullptr; }
+
+private:
+    uint8_t *data_;
+    size_t size_;
+};
 
 static const uint8_t *real_key(const tuya_device_t *dev) {
     return reinterpret_cast<const uint8_t *>(dev->local_key);
@@ -140,8 +158,11 @@ static tuya_err_t encode_message(tuya_device_t *dev,
                                  size_t payload_len,
                                  uint8_t *out,
                                  size_t *out_len) {
-    uint8_t plain[TUYA_MAX_PAYLOAD_LENGTH];
-    uint8_t encrypted[TUYA_MAX_PAYLOAD_LENGTH + 32U];
+    HeapBuffer plain_buf(TUYA_MAX_PAYLOAD_LENGTH);
+    HeapBuffer encrypted_buf(TUYA_MAX_PAYLOAD_LENGTH + 32U);
+    if (!plain_buf.ok() || !encrypted_buf.ok()) return TUYA_ERR_NOMEM;
+    uint8_t *plain = plain_buf.data();
+    uint8_t *encrypted = encrypted_buf.data();
     const uint8_t *wire_payload = payload;
     size_t wire_len = payload_len;
     const uint8_t *hmac_key = nullptr;
@@ -152,7 +173,7 @@ static tuya_err_t encode_message(tuya_device_t *dev,
     if (dev->version >= TUYA_PROTO_34) {
         const uint8_t *key = active_key(dev);
         if (!tuya_cmd_skips_protocol_header(cmd)) {
-            if (payload_len + TUYA_VERSION_HEADER_LEN > sizeof(plain)) return TUYA_ERR_BUFFER_TOO_SMALL;
+            if (payload_len + TUYA_VERSION_HEADER_LEN > plain_buf.size()) return TUYA_ERR_BUFFER_TOO_SMALL;
             version_header(dev, plain);
             memcpy(plain + TUYA_VERSION_HEADER_LEN, payload, payload_len);
             wire_payload = plain;
@@ -165,18 +186,18 @@ static tuya_err_t encode_message(tuya_device_t *dev,
             return err;
         }
 
-        size_t enc_len = sizeof(encrypted);
+        size_t enc_len = encrypted_buf.size();
         err = tuya_crypto_aes_ecb_encrypt_pkcs7(key, wire_payload, wire_len, encrypted, &enc_len);
         if (err != TUYA_OK) return err;
         wire_payload = encrypted;
         wire_len = enc_len;
         hmac_key = key;
     } else if (dev->version >= TUYA_PROTO_32) {
-        size_t enc_len = sizeof(encrypted);
+        size_t enc_len = encrypted_buf.size();
         err = tuya_crypto_aes_ecb_encrypt_pkcs7(real_key(dev), payload, payload_len, encrypted, &enc_len);
         if (err != TUYA_OK) return err;
         if (!tuya_cmd_skips_protocol_header(cmd)) {
-            if (enc_len + TUYA_VERSION_HEADER_LEN > sizeof(plain)) return TUYA_ERR_BUFFER_TOO_SMALL;
+            if (enc_len + TUYA_VERSION_HEADER_LEN > plain_buf.size()) return TUYA_ERR_BUFFER_TOO_SMALL;
             version_header(dev, plain);
             memcpy(plain + TUYA_VERSION_HEADER_LEN, encrypted, enc_len);
             wire_payload = plain;
@@ -186,7 +207,7 @@ static tuya_err_t encode_message(tuya_device_t *dev,
             wire_len = enc_len;
         }
     } else if (cmd == TUYA_CMD_CONTROL) {
-        size_t enc_len = sizeof(encrypted);
+        size_t enc_len = encrypted_buf.size();
         err = tuya_crypto_aes_ecb_encrypt_pkcs7(real_key(dev), payload, payload_len, encrypted, &enc_len);
         if (err != TUYA_OK) return err;
 
@@ -198,7 +219,7 @@ static tuya_err_t encode_message(tuya_device_t *dev,
         uint8_t md5slice[16];
         err = md5_slice_payload(b64, b64_len, real_key(dev), md5slice);
         if (err != TUYA_OK) return err;
-        if (3U + 16U + b64_len > sizeof(plain)) return TUYA_ERR_BUFFER_TOO_SMALL;
+        if (3U + 16U + b64_len > plain_buf.size()) return TUYA_ERR_BUFFER_TOO_SMALL;
         memcpy(plain, VERSION_31, 3U);
         memcpy(plain + 3U, md5slice, 16U);
         memcpy(plain + 19U, b64, b64_len);
@@ -274,7 +295,9 @@ static tuya_err_t decode_payload(tuya_device_t *dev,
                                  char *out_json,
                                  size_t out_len) {
     (void)cmd;
-    uint8_t work[TUYA_MAX_PAYLOAD_LENGTH + 1U];
+    HeapBuffer work_buf(TUYA_MAX_PAYLOAD_LENGTH + 1U);
+    if (!work_buf.ok()) return TUYA_ERR_NOMEM;
+    uint8_t *work = work_buf.data();
     if (payload_len > TUYA_MAX_PAYLOAD_LENGTH) return TUYA_ERR_BUFFER_TOO_SMALL;
     memcpy(work, payload, payload_len);
     size_t len = payload_len;
@@ -282,7 +305,7 @@ static tuya_err_t decode_payload(tuya_device_t *dev,
     tuya_err_t err;
 
     if (dev->version == TUYA_PROTO_34) {
-        size_t dec_len = sizeof(work) - 1U;
+        size_t dec_len = work_buf.size() - 1U;
         err = tuya_crypto_aes_ecb_decrypt_pkcs7(active_key(dev), p, len, work, &dec_len);
         if (err != TUYA_OK) return err;
         p = work;
@@ -291,11 +314,13 @@ static tuya_err_t decode_payload(tuya_device_t *dev,
 
     if (len >= 3U && memcmp(p, VERSION_31, 3U) == 0) {
         if (len <= 19U) return TUYA_ERR_PAYLOAD;
-        uint8_t decoded[TUYA_MAX_PAYLOAD_LENGTH];
-        size_t decoded_len = sizeof(decoded);
+        HeapBuffer decoded_buf(TUYA_MAX_PAYLOAD_LENGTH);
+        if (!decoded_buf.ok()) return TUYA_ERR_NOMEM;
+        uint8_t *decoded = decoded_buf.data();
+        size_t decoded_len = decoded_buf.size();
         err = tuya_crypto_base64_decode(p + 19U, len - 19U, decoded, &decoded_len);
         if (err != TUYA_OK) return err;
-        len = sizeof(work) - 1U;
+        len = work_buf.size() - 1U;
         err = tuya_crypto_aes_ecb_decrypt_pkcs7(real_key(dev), decoded, decoded_len, work, &len);
         if (err != TUYA_OK) return err;
         p = work;
@@ -304,8 +329,10 @@ static tuya_err_t decode_payload(tuya_device_t *dev,
 
         if (dev->version < TUYA_PROTO_34) {
             strip_clear_source_header_before_cipher(&p, &len);
-            uint8_t decrypted[TUYA_MAX_PAYLOAD_LENGTH + 1U];
-            size_t dec_len = sizeof(decrypted) - 1U;
+            HeapBuffer decrypted_buf(TUYA_MAX_PAYLOAD_LENGTH + 1U);
+            if (!decrypted_buf.ok()) return TUYA_ERR_NOMEM;
+            uint8_t *decrypted = decrypted_buf.data();
+            size_t dec_len = decrypted_buf.size() - 1U;
             err = tuya_crypto_aes_ecb_decrypt_pkcs7(real_key(dev), p, len, decrypted, &dec_len);
             if (err != TUYA_OK) return err;
             memcpy(work, decrypted, dec_len);
@@ -342,8 +369,10 @@ static tuya_err_t send_encoded(tuya_device_t *dev,
                                tuya_message_t *msg,
                                uint8_t *decoded_payload,
                                size_t *decoded_len) {
-    uint8_t frame[TUYA_MAX_FRAME_LENGTH];
-    size_t frame_len = sizeof(frame);
+    HeapBuffer frame_buf(TUYA_MAX_FRAME_LENGTH);
+    if (!frame_buf.ok()) return TUYA_ERR_NOMEM;
+    uint8_t *frame = frame_buf.data();
+    size_t frame_len = frame_buf.size();
     tuya_err_t err = encode_message(dev, cmd, payload, payload_len, frame, &frame_len);
     if (err != TUYA_OK) return err;
 
@@ -354,7 +383,7 @@ static tuya_err_t send_encoded(tuya_device_t *dev,
     client->flush();
 
     for (int attempt = 0; attempt < 2; ++attempt) {
-        size_t rx_len = sizeof(frame);
+        size_t rx_len = frame_buf.size();
         err = read_frame(dev, frame, &rx_len);
         if (err != TUYA_OK) return err;
 
@@ -376,12 +405,14 @@ static tuya_err_t negotiate_session(tuya_device_t *dev) {
     uint8_t local_nonce[16];
     uint8_t remote_nonce[16];
     uint8_t finish_payload[32];
-    uint8_t payload_buf[TUYA_MAX_PAYLOAD_LENGTH];
+    HeapBuffer payload_heap(TUYA_MAX_PAYLOAD_LENGTH);
+    if (!payload_heap.ok()) return TUYA_ERR_NOMEM;
+    uint8_t *payload_buf = payload_heap.data();
     tuya_message_t msg;
 
     tuya_session_generate_nonce(local_nonce);
 
-    size_t decoded_len = sizeof(payload_buf);
+    size_t decoded_len = payload_heap.size();
     tuya_err_t err = send_encoded(dev, TUYA_CMD_SESS_KEY_START, local_nonce, sizeof(local_nonce),
                                   true,
                                   &msg, payload_buf, &decoded_len);
@@ -392,7 +423,7 @@ static tuya_err_t negotiate_session(tuya_device_t *dev) {
                                     dev->version, remote_nonce, finish_payload);
     if (err != TUYA_OK) return err;
 
-    decoded_len = sizeof(payload_buf);
+    decoded_len = payload_heap.size();
     err = send_encoded(dev, TUYA_CMD_SESS_KEY_FINISH, finish_payload, sizeof(finish_payload),
                        false,
                        &msg, payload_buf, &decoded_len);
@@ -440,8 +471,10 @@ static tuya_err_t command_roundtrip(tuya_device_t *dev,
     tuya_err_t err = ensure_connected(dev);
     if (err != TUYA_OK) return err;
 
-    uint8_t payload_buf[TUYA_MAX_PAYLOAD_LENGTH];
-    size_t payload_len = sizeof(payload_buf);
+    HeapBuffer payload_heap(TUYA_MAX_PAYLOAD_LENGTH);
+    if (!payload_heap.ok()) return TUYA_ERR_NOMEM;
+    uint8_t *payload_buf = payload_heap.data();
+    size_t payload_len = payload_heap.size();
     tuya_message_t msg;
     err = send_encoded(dev, cmd, reinterpret_cast<const uint8_t *>(json), strlen(json),
                        payload_required,

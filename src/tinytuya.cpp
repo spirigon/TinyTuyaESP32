@@ -2,6 +2,8 @@
 
 #ifdef __cplusplus
 
+#include <stdlib.h>
+
 static tuya_protocol_version_t version_from_float(float version) {
     if (version < 3.15f) return TUYA_PROTO_31;
     if (version < 3.25f) return TUYA_PROTO_32;
@@ -35,9 +37,11 @@ void TinyTuya::close() {
 }
 
 tuya_err_t TinyTuya::status(String &out) {
-    char buf[TUYA_MAX_JSON_LENGTH];
-    tuya_err_t err = tuya_status(&dev_, buf, sizeof(buf));
+    char *buf = static_cast<char *>(malloc(TUYA_MAX_JSON_LENGTH));
+    if (!buf) return TUYA_ERR_NOMEM;
+    tuya_err_t err = tuya_status(&dev_, buf, TUYA_MAX_JSON_LENGTH);
     if (err == TUYA_OK) out = buf;
+    free(buf);
     return err;
 }
 
@@ -54,9 +58,11 @@ tuya_err_t TinyTuya::setString(uint8_t dp, const char *value) {
 }
 
 tuya_err_t TinyTuya::setValue(uint8_t dp, const char *jsonLiteral, String *out) {
-    char buf[TUYA_MAX_JSON_LENGTH];
-    tuya_err_t err = tuya_set_value_json(&dev_, dp, jsonLiteral, buf, sizeof(buf));
+    char *buf = static_cast<char *>(malloc(TUYA_MAX_JSON_LENGTH));
+    if (!buf) return TUYA_ERR_NOMEM;
+    tuya_err_t err = tuya_set_value_json(&dev_, dp, jsonLiteral, buf, TUYA_MAX_JSON_LENGTH);
     if (err == TUYA_OK && out) *out = buf;
+    free(buf);
     return err;
 }
 
