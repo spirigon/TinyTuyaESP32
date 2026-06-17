@@ -1,8 +1,9 @@
 #include <WiFi.h>
 #include <tinytuya.h>
+#include "example_wifi_config.h"
 
-const char *SSID = "your_wifi";
-const char *PASS = "your_password";
+const char *SSID = TINYTUYA_WIFI_SSID;
+const char *PASS = TINYTUYA_WIFI_PASS;
 
 TinyTuya dev("DEVICE_ID_HERE", "192.168.1.42", "0123456789abcdef");
 uint32_t nextHeartbeat = 0;
