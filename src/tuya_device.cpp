@@ -483,7 +483,7 @@ static tuya_err_t command_roundtrip(tuya_device_t *dev,
         err = decode_payload(dev, msg.cmd, payload_buf, payload_len, out_json, out_len);
     }
 
-    if (!dev->persistent) stop_client(dev, false);
+    if (err != TUYA_OK || !dev->persistent) stop_client(dev, false);
     if (dev->callback) {
         if (err == TUYA_OK && out_json) dev->callback(TUYA_EVENT_STATUS_RECEIVED, out_json, dev->callback_user);
         else if (err != TUYA_OK) dev->callback(TUYA_EVENT_ERROR, nullptr, dev->callback_user);
