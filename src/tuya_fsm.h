@@ -27,6 +27,7 @@ typedef struct {
     tuya_fsm_state_t state;
     uint32_t state_entered_ms;
     tuya_fsm_request_t pending;
+    tuya_err_t last_error;
     uint8_t pending_dp;
     char pending_value[96];
     char response[TUYA_MAX_JSON_LENGTH];

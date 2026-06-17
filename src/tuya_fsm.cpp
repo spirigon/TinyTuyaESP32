@@ -14,6 +14,7 @@ void tuya_fsm_init(tuya_fsm_t *fsm, tuya_device_t *dev, tuya_event_cb_t cb, void
     fsm->dev = dev;
     fsm->callback = cb;
     fsm->user = user;
+    fsm->last_error = TUYA_OK;
     enter_state(fsm, TUYA_FSM_IDLE);
 }
 
@@ -41,6 +42,7 @@ void tuya_fsm_loop(tuya_fsm_t *fsm) {
                                   fsm->response, sizeof(fsm->response));
     }
     fsm->pending = TUYA_FSM_REQ_NONE;
+    fsm->last_error = err;
     if (err == TUYA_OK) {
         enter_state(fsm, TUYA_FSM_READY);
         if (fsm->callback) fsm->callback(TUYA_EVENT_STATUS_RECEIVED, fsm->response, fsm->user);

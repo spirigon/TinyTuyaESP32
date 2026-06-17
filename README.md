@@ -12,11 +12,12 @@ Implemented:
 - v3.4/v3.5 session-key negotiation helpers.
 - Sync Arduino API: `tuya_status()`, `tuya_set_bool()`, `tuya_set_int()`, `tuya_set_string()`, `tuya_heartbeat()`.
 - UDP discovery listeners on 6666, 6667, and 7000, plus v3.5 `REQ_DEVINFO` solicitation.
-- Arduino wrappers: `TinyTuya`, `TuyaScanner`, and `TinyTuyaFsm`.
+- Arduino wrappers: `TinyTuya`, `TuyaScanner`, `TinyTuyaFsm`, and `TinyTuyaMulti`.
+- Cooperative multi-device polling with independent sockets/session keys per device.
 
 Known gaps:
 
-- `TinyTuyaFsm` currently schedules sync operations from `loop()`; it is not yet a true non-blocking TCP state machine.
+- `TinyTuyaFsm` and `TinyTuyaMulti` schedule sync operations from `loop()`; they are cooperative schedulers, not true non-blocking TCP state machines.
 - Zigbee gateway child-device support is reserved but not implemented.
 - Hardware regression captures and generated Doxygen HTML are not included yet.
 
@@ -53,6 +54,30 @@ void setup() {
 }
 
 void loop() {}
+```
+
+Cooperative multi-device polling:
+
+```cpp
+TinyTuyaMulti tuya(2);
+
+void onTuya(size_t index, const char *id, tuya_event_t event,
+            const char *payload, tuya_err_t err, void *user) {
+  if (event == TUYA_EVENT_STATUS_RECEIVED && payload) Serial.println(payload);
+}
+
+void setup() {
+  WiFi.begin("SSID", "PASS");
+  while (WiFi.status() != WL_CONNECTED) delay(250);
+
+  tuya.setCallback(onTuya);
+  tuya.addDevice("DEVICE_ID_1", "192.168.1.42", "0123456789abcdef", 3.4);
+  tuya.addDevice("DEVICE_ID_2", "192.168.1.43", "fedcba9876543210", 3.4);
+}
+
+void loop() {
+  tuya.loop();
+}
 ```
 
 Examples:

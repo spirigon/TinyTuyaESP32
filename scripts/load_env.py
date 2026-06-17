@@ -44,6 +44,11 @@ string_keys = {
     "TUYA_LOCAL_KEY": "TINYTUYA_LOCAL_KEY",
 }
 
+for index in range(2, 9):
+    string_keys[f"TUYA_DEVICE_ID_{index}"] = f"TINYTUYA_DEVICE_ID_{index}"
+    string_keys[f"TUYA_DEVICE_IP_{index}"] = f"TINYTUYA_DEVICE_IP_{index}"
+    string_keys[f"TUYA_LOCAL_KEY_{index}"] = f"TINYTUYA_LOCAL_KEY_{index}"
+
 for env_key, define_name in string_keys.items():
     if env_key in values:
         lines.append(f"#define {define_name} {c_string(values[env_key])}")
@@ -52,6 +57,9 @@ numeric_keys = {
     "TUYA_PROTOCOL_VERSION": "TINYTUYA_PROTOCOL_VERSION",
     "TUYA_RELAY_DP": "TINYTUYA_RELAY_DP",
 }
+
+for index in range(2, 9):
+    numeric_keys[f"TUYA_PROTOCOL_VERSION_{index}"] = f"TINYTUYA_PROTOCOL_VERSION_{index}"
 
 for env_key, define_name in numeric_keys.items():
     if env_key in values:

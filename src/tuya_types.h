@@ -26,7 +26,8 @@ typedef enum {
     TUYA_ERR_INVAL          = -11,
     TUYA_ERR_NOT_CONNECTED  = -12,
     TUYA_ERR_UNSUPPORTED    = -13,
-    TUYA_ERR_BUFFER_TOO_SMALL = -14
+    TUYA_ERR_BUFFER_TOO_SMALL = -14,
+    TUYA_ERR_BUSY           = -15
 } tuya_err_t;
 
 typedef enum {
