@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <tinytuya.h>
-#include "example_wifi_config.h"
+#include "example_tuya_config.h"
 
 const char *SSID = TINYTUYA_WIFI_SSID;
 const char *PASS = TINYTUYA_WIFI_PASS;
@@ -23,7 +23,8 @@ void setup() {
     WiFi.begin(SSID, PASS);
     while (WiFi.status() != WL_CONNECTED) delay(250);
 
-    fsm.begin("DEVICE_ID_HERE", "192.168.1.42", "0123456789abcdef", 3.3, onEvent);
+    fsm.begin(TINYTUYA_DEVICE_ID, TINYTUYA_DEVICE_IP, TINYTUYA_LOCAL_KEY,
+              TINYTUYA_PROTOCOL_VERSION, onEvent);
     fsm.requestStatus();
 }
 

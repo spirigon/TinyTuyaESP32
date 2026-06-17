@@ -1,15 +1,15 @@
 #include <WiFi.h>
 #include <tinytuya.h>
-#include "example_wifi_config.h"
+#include "example_tuya_config.h"
 
 const char *SSID = TINYTUYA_WIFI_SSID;
 const char *PASS = TINYTUYA_WIFI_PASS;
 
-const char *DEVICE_ID = "DEVICE_ID_HERE";
-const char *DEVICE_IP = "192.168.1.42";
-const char *LOCAL_KEY = "0123456789abcdef";
-const float PROTOCOL_VERSION = 3.3;
-const uint8_t RELAY_DP = 1;
+const char *DEVICE_ID = TINYTUYA_DEVICE_ID;
+const char *DEVICE_IP = TINYTUYA_DEVICE_IP;
+const char *LOCAL_KEY = TINYTUYA_LOCAL_KEY;
+const float PROTOCOL_VERSION = TINYTUYA_PROTOCOL_VERSION;
+const uint8_t RELAY_DP = TINYTUYA_RELAY_DP;
 
 void setup() {
     Serial.begin(115200);

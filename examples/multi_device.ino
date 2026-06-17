@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <tinytuya.h>
-#include "example_wifi_config.h"
+#include "example_tuya_config.h"
 
 const char *SSID = TINYTUYA_WIFI_SSID;
 const char *PASS = TINYTUYA_WIFI_PASS;
@@ -13,7 +13,7 @@ struct DeviceConfig {
 };
 
 DeviceConfig devices[] = {
-    {"DEVICE_ID_1", "192.168.1.42", "0123456789abcdef", 3.3},
+    {TINYTUYA_DEVICE_ID, TINYTUYA_DEVICE_IP, TINYTUYA_LOCAL_KEY, TINYTUYA_PROTOCOL_VERSION},
     {"DEVICE_ID_2", "192.168.1.43", "fedcba9876543210", 3.4},
 };
 
