@@ -26,8 +26,8 @@ uint32_t tuya_crc32(const uint8_t *data, size_t len) {
 
 tuya_err_t tuya_crypto_md5(const uint8_t *data, size_t len, uint8_t out[16]) {
     if (!data || !out) return TUYA_ERR_INVAL;
-    int rc = mbedtls_md5(data, len, out);
-    return rc == 0 ? TUYA_OK : TUYA_ERR_PAYLOAD;
+    mbedtls_md5(data, len, out);
+    return TUYA_OK;
 }
 
 tuya_err_t tuya_crypto_hmac_sha256(const uint8_t *key, size_t key_len,
