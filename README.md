@@ -85,6 +85,7 @@ Examples:
 - `examples/discovery.ino`
 - `examples/poll_status.ino`
 - `examples/control_relay.ino`
+- `examples/verify_relay.ino`
 - `examples/multi_device.ino`
 - `examples/async_fsm.ino`
 - `examples/push_updates.ino`

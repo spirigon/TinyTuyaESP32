@@ -560,7 +560,11 @@ tuya_err_t tuya_set_value_json(tuya_device_t *dev,
     tuya_cmd_t cmd;
     tuya_err_t err = tuya_json_build_set(dev, dp, value_json, &cmd, json, sizeof(json));
     if (err != TUYA_OK) return err;
-    return command_roundtrip(dev, cmd, json, false, out_json, out_len);
+    err = command_roundtrip(dev, cmd, json, false, out_json, out_len);
+    if (err != TUYA_OK && dev->version >= TUYA_PROTO_34 && cmd == TUYA_CMD_CONTROL_NEW) {
+        err = command_roundtrip(dev, TUYA_CMD_CONTROL, json, false, out_json, out_len);
+    }
+    return err;
 }
 
 tuya_err_t tuya_set_bool(tuya_device_t *dev, uint8_t dp, bool value) {
