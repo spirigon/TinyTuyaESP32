@@ -94,6 +94,24 @@ Examples:
 - `examples/async_task.ino`
 - `examples/push_updates.ino`
 - `examples/validate_device.ino`
+- `examples/http_forward.ino`
+
+Generic HTTP forwarding example:
+
+`examples/http_forward.ino` polls one Tuya device and POSTs a JSON envelope to
+`TINYTUYA_FORWARD_SERVER_URL`. It is intentionally self-contained example code,
+not a library API. To try it locally, run:
+
+```bash
+python examples/tools/http_json_receiver.py --port 28080
+```
+
+Then set these optional `.env` values:
+
+```text
+FORWARD_SERVER_URL=http://192.168.1.100:28080/tuya
+FORWARD_INTERVAL_MS=30000
+```
 
 Run host-side tests:
 

@@ -4,6 +4,8 @@
 .idea/
 build/
 tests/build/
+__pycache__/
+*.pyc
 *.elf
 *.bin
 *.map

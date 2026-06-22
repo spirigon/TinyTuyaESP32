@@ -22,6 +22,7 @@ jobs:
           -e discovery
           -e poll_status
           -e push_updates
+          -e http_forward
           -e validate_device
           -e async_fsm
           -e async_task

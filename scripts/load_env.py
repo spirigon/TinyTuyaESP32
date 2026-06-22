@@ -42,6 +42,7 @@ string_keys = {
     "TUYA_DEVICE_ID": "TINYTUYA_DEVICE_ID",
     "TUYA_DEVICE_IP": "TINYTUYA_DEVICE_IP",
     "TUYA_LOCAL_KEY": "TINYTUYA_LOCAL_KEY",
+    "FORWARD_SERVER_URL": "TINYTUYA_FORWARD_SERVER_URL",
 }
 
 for index in range(2, 9):
@@ -56,6 +57,7 @@ for env_key, define_name in string_keys.items():
 numeric_keys = {
     "TUYA_PROTOCOL_VERSION": "TINYTUYA_PROTOCOL_VERSION",
     "TUYA_RELAY_DP": "TINYTUYA_RELAY_DP",
+    "FORWARD_INTERVAL_MS": "TINYTUYA_FORWARD_INTERVAL_MS",
 }
 
 for index in range(2, 9):
