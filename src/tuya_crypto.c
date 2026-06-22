@@ -12,18 +12,6 @@
 #include <esp_random.h>
 #endif
 
-uint32_t tuya_crc32(const uint8_t *data, size_t len) {
-    uint32_t crc = 0xFFFFFFFFUL;
-    for (size_t i = 0; i < len; ++i) {
-        crc ^= data[i];
-        for (uint8_t j = 0; j < 8; ++j) {
-            uint32_t mask = (uint32_t)-(int32_t)(crc & 1U);
-            crc = (crc >> 1) ^ (0xEDB88320UL & mask);
-        }
-    }
-    return crc ^ 0xFFFFFFFFUL;
-}
-
 tuya_err_t tuya_crypto_md5(const uint8_t *data, size_t len, uint8_t out[16]) {
     if (!data || !out) return TUYA_ERR_INVAL;
     mbedtls_md5(data, len, out);

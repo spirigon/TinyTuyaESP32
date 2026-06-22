@@ -12,12 +12,15 @@ Implemented:
 - v3.4/v3.5 session-key negotiation helpers.
 - Sync Arduino API: `tuya_status()`, `tuya_set_bool()`, `tuya_set_int()`, `tuya_set_string()`, `tuya_heartbeat()`.
 - UDP discovery listeners on 6666, 6667, and 7000, plus v3.5 `REQ_DEVINFO` solicitation.
-- Arduino wrappers: `TinyTuya`, `TuyaScanner`, `TinyTuyaFsm`, and `TinyTuyaMulti`.
+- Arduino wrappers: `TinyTuya`, `TuyaScanner`, `TinyTuyaFsm`, `TinyTuyaAsync`, and `TinyTuyaMulti`.
 - Cooperative multi-device polling with independent sockets/session keys per device.
+- Task-backed single-device async queue with `TinyTuyaAsync`.
+- Host-side regression test runner and GitHub Actions CI build matrix.
 
 Known gaps:
 
-- `TinyTuyaFsm` and `TinyTuyaMulti` schedule sync operations from `loop()`; they are cooperative schedulers, not true non-blocking TCP state machines.
+- `TinyTuyaFsm` and `TinyTuyaMulti` schedule sync operations from `loop()`; they are cooperative schedulers, not true non-blocking TCP state machines. Use `TinyTuyaAsync` when the Arduino loop task must not run Tuya TCP roundtrips.
+- `TinyTuyaAsync` runs the existing sync protocol implementation on a worker task; it is not an AsyncTCP/lwIP callback-level transport rewrite.
 - Zigbee gateway child-device support is reserved but not implemented.
 - Hardware regression captures and generated Doxygen HTML are not included yet.
 
@@ -88,7 +91,15 @@ Examples:
 - `examples/verify_relay.ino`
 - `examples/multi_device.ino`
 - `examples/async_fsm.ino`
+- `examples/async_task.ino`
 - `examples/push_updates.ino`
+- `examples/validate_device.ino`
+
+Run host-side tests:
+
+```bash
+python tests/run_host_tests.py
+```
 
 ## Notes
 

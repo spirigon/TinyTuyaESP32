@@ -4,6 +4,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
 static tuya_protocol_version_t version_from_float(float version) {
     if (version < 3.15f) return TUYA_PROTO_31;
@@ -120,6 +125,190 @@ void TinyTuyaFsm::disconnect() {
 
 tuya_fsm_state_t TinyTuyaFsm::state() const {
     return fsm_.state;
+}
+
+struct TinyTuyaAsync::AsyncRequest {
+    enum Type : uint8_t {
+        STATUS,
+        SET_JSON
+    };
+
+    Type type;
+    uint8_t dp;
+    char value[96];
+};
+
+TinyTuyaAsync::TinyTuyaAsync()
+    : queue_(nullptr),
+      task_(nullptr),
+      running_(false),
+      busy_(false),
+      last_error_(TUYA_OK),
+      callback_(nullptr),
+      callback_user_(nullptr) {
+    memset(&dev_, 0, sizeof(dev_));
+}
+
+TinyTuyaAsync::~TinyTuyaAsync() {
+    stop();
+}
+
+tuya_err_t TinyTuyaAsync::begin(const char *deviceId,
+                                const char *ip,
+                                const char *localKey,
+                                float version,
+                                tuya_event_cb_t callback,
+                                void *user,
+                                uint32_t taskStack,
+                                uint8_t taskPriority) {
+    if (running_) return TUYA_ERR_BUSY;
+
+    tuya_err_t err = tuya_device_init(&dev_, deviceId, ip, localKey);
+    if (err != TUYA_OK) return err;
+    tuya_device_set_version(&dev_, version_from_float(version));
+    tuya_device_set_persistent(&dev_, true);
+
+    callback_ = callback;
+    callback_user_ = user;
+    last_error_ = TUYA_OK;
+    busy_ = false;
+    running_ = true;
+
+    queue_ = xQueueCreate(4, sizeof(AsyncRequest));
+    if (!queue_) {
+        running_ = false;
+        return TUYA_ERR_NOMEM;
+    }
+
+    TaskHandle_t handle = nullptr;
+    BaseType_t ok = xTaskCreate(TinyTuyaAsync::taskEntry,
+                                "TinyTuyaAsync",
+                                taskStack,
+                                this,
+                                (UBaseType_t)taskPriority,
+                                &handle);
+    if (ok != pdPASS) {
+        vQueueDelete((QueueHandle_t)queue_);
+        queue_ = nullptr;
+        running_ = false;
+        return TUYA_ERR_NOMEM;
+    }
+
+    task_ = handle;
+    return TUYA_OK;
+}
+
+tuya_err_t TinyTuyaAsync::enqueue(const AsyncRequest &request) {
+    if (!running_ || !queue_) return TUYA_ERR_NOT_CONNECTED;
+    BaseType_t ok = xQueueSend((QueueHandle_t)queue_, &request, 0);
+    return ok == pdTRUE ? TUYA_OK : TUYA_ERR_BUSY;
+}
+
+tuya_err_t TinyTuyaAsync::requestStatus() {
+    AsyncRequest request;
+    memset(&request, 0, sizeof(request));
+    request.type = AsyncRequest::STATUS;
+    return enqueue(request);
+}
+
+tuya_err_t TinyTuyaAsync::requestSet(uint8_t dp, const char *jsonLiteral) {
+    if (!jsonLiteral) return TUYA_ERR_INVAL;
+    AsyncRequest request;
+    memset(&request, 0, sizeof(request));
+    request.type = AsyncRequest::SET_JSON;
+    request.dp = dp;
+    strncpy(request.value, jsonLiteral, sizeof(request.value) - 1U);
+    return enqueue(request);
+}
+
+tuya_err_t TinyTuyaAsync::requestSetBool(uint8_t dp, bool value) {
+    return requestSet(dp, value ? "true" : "false");
+}
+
+tuya_err_t TinyTuyaAsync::requestSetInt(uint8_t dp, int value) {
+    char literal[24];
+    snprintf(literal, sizeof(literal), "%d", value);
+    return requestSet(dp, literal);
+}
+
+tuya_err_t TinyTuyaAsync::requestSetString(uint8_t dp, const char *value) {
+    if (!value) return TUYA_ERR_INVAL;
+    char literal[96];
+    size_t off = 0;
+    literal[off++] = '"';
+    for (const char *p = value; *p && off + 3U < sizeof(literal); ++p) {
+        if (*p == '"' || *p == '\\') literal[off++] = '\\';
+        literal[off++] = *p;
+    }
+    if (off + 1U >= sizeof(literal)) return TUYA_ERR_BUFFER_TOO_SMALL;
+    literal[off++] = '"';
+    literal[off] = '\0';
+    return requestSet(dp, literal);
+}
+
+bool TinyTuyaAsync::busy() const {
+    QueueHandle_t queue = (QueueHandle_t)queue_;
+    return busy_ || (queue && uxQueueMessagesWaiting(queue) > 0);
+}
+
+tuya_err_t TinyTuyaAsync::lastError() const {
+    return last_error_;
+}
+
+void TinyTuyaAsync::stop() {
+    running_ = false;
+
+    TaskHandle_t task = (TaskHandle_t)task_;
+    task_ = nullptr;
+    if (task && task != xTaskGetCurrentTaskHandle()) {
+        vTaskDelete(task);
+    }
+
+    if (queue_) {
+        vQueueDelete((QueueHandle_t)queue_);
+        queue_ = nullptr;
+    }
+
+    busy_ = false;
+    tuya_device_close(&dev_);
+}
+
+void TinyTuyaAsync::taskEntry(void *arg) {
+    TinyTuyaAsync *self = static_cast<TinyTuyaAsync *>(arg);
+    if (self) self->run();
+    vTaskDelete(nullptr);
+}
+
+void TinyTuyaAsync::run() {
+    while (running_) {
+        AsyncRequest request;
+        if (xQueueReceive((QueueHandle_t)queue_, &request, pdMS_TO_TICKS(100)) != pdTRUE) {
+            continue;
+        }
+
+        busy_ = true;
+        char response[TUYA_MAX_JSON_LENGTH];
+        response[0] = '\0';
+        tuya_err_t err = TUYA_ERR_INVAL;
+
+        if (request.type == AsyncRequest::STATUS) {
+            err = tuya_status(&dev_, response, sizeof(response));
+        } else if (request.type == AsyncRequest::SET_JSON) {
+            err = tuya_set_value_json(&dev_, request.dp, request.value, response, sizeof(response));
+        }
+
+        last_error_ = err;
+        if (callback_) {
+            if (err == TUYA_OK) {
+                callback_(TUYA_EVENT_STATUS_RECEIVED,
+                          response[0] ? response : nullptr,
+                          callback_user_);
+            } else {
+                callback_(TUYA_EVENT_ERROR, nullptr, callback_user_);
+            }
+        }
+        busy_ = false;
+    }
 }
 
 struct TinyTuyaMulti::Slot {

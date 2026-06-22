@@ -73,6 +73,52 @@ private:
     tuya_fsm_t fsm_;
 };
 
+/**
+ * Task-backed async facade for one Tuya device.
+ *
+ * Tuya TCP operations still use the synchronous protocol implementation, but
+ * they run on a FreeRTOS worker task instead of the Arduino loop task. The
+ * callback is invoked from the worker task.
+ */
+class TinyTuyaAsync {
+public:
+    TinyTuyaAsync();
+    ~TinyTuyaAsync();
+
+    tuya_err_t begin(const char *deviceId,
+                     const char *ip,
+                     const char *localKey,
+                     float version,
+                     tuya_event_cb_t callback,
+                     void *user = nullptr,
+                     uint32_t taskStack = 8192,
+                     uint8_t taskPriority = 1);
+
+    tuya_err_t requestStatus();
+    tuya_err_t requestSet(uint8_t dp, const char *jsonLiteral);
+    tuya_err_t requestSetBool(uint8_t dp, bool value);
+    tuya_err_t requestSetInt(uint8_t dp, int value);
+    tuya_err_t requestSetString(uint8_t dp, const char *value);
+    bool busy() const;
+    tuya_err_t lastError() const;
+    void stop();
+
+private:
+    struct AsyncRequest;
+    static void taskEntry(void *arg);
+    tuya_err_t enqueue(const AsyncRequest &request);
+    void run();
+
+    tuya_device_t dev_;
+    void *queue_;
+    void *task_;
+    volatile bool running_;
+    volatile bool busy_;
+    tuya_err_t last_error_;
+    tuya_event_cb_t callback_;
+    void *callback_user_;
+};
+
 typedef void (*tiny_tuya_multi_cb_t)(size_t index,
                                      const char *deviceId,
                                      tuya_event_t event,

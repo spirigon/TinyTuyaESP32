@@ -1,5 +1,7 @@
 TinyTuya	KEYWORD1
 TinyTuyaFsm	KEYWORD1
+TinyTuyaAsync	KEYWORD1
+TinyTuyaMulti	KEYWORD1
 TuyaScanner	KEYWORD1
 tuya_device_t	KEYWORD1
 tuya_status	KEYWORD2

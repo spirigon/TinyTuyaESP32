@@ -3,6 +3,7 @@
 .vscode/
 .idea/
 build/
+tests/build/
 *.elf
 *.bin
 *.map
