@@ -14,3 +14,5 @@ __pycache__/
 docs/html/*
 !docs/html/README.md
 include/tinytuya_env.h
+certs/*
+!certs/README.md

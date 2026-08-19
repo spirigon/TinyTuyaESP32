@@ -23,6 +23,7 @@ jobs:
           -e poll_status
           -e push_updates
           -e http_forward
+          -e http_forward_multi
           -e validate_device
           -e async_fsm
           -e async_task

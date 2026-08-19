@@ -96,22 +96,41 @@ Examples:
 - `examples/validate_device.ino`
 - `examples/http_forward.ino`
 
-Generic HTTP forwarding example:
+Generic HTTPS forwarding example:
 
-`examples/http_forward.ino` polls one Tuya device and POSTs a JSON envelope to
-`TINYTUYA_FORWARD_SERVER_URL`. It is intentionally self-contained example code,
-not a library API. To try it locally, run:
+`examples/http_forward.ino` polls one to eight Tuya devices and POSTs a JSON
+envelope for each device to `TINYTUYA_FORWARD_SERVER_URL`. Every envelope
+contains `gatewayId` and `deviceId`; the gateway ID and its individual token are
+also sent in `X-ESP32-Gateway` and `X-ESP32-Token`. The example validates the
+server against the configured trusted root CA. It is intentionally self-contained
+example code, not a library API. To try the diagnostic receiver locally, run:
 
 ```bash
 python examples/tools/http_json_receiver.py --port 28080
 ```
 
-Then set these optional `.env` values:
+Production uses `148-253-213-23.sslip.io` with a public Let's Encrypt
+certificate. Download the official ISRG Root X1 PEM to
+`certs/isrg-root-x1.pem`, then set these `.env` values:
 
 ```text
-FORWARD_SERVER_URL=http://192.168.1.100:28080/tuya
+FORWARD_SERVER_URL=https://148-253-213-23.sslip.io/tuya
+FORWARD_TLS_HOSTNAME=148-253-213-23.sslip.io
+FORWARD_GATEWAY_ID=esp32-6k
+FORWARD_TOKEN=replace_with_unique_gateway_token
+FORWARD_CA_CERT_FILE=certs/isrg-root-x1.pem
 FORWARD_INTERVAL_MS=30000
 ```
+
+Use a different `FORWARD_GATEWAY_ID`, token, and local `.env` for every ESP32.
+Additional `TUYA_DEVICE_ID_2` ... `TUYA_DEVICE_ID_8` entries are polled by the
+same gateway and therefore must all belong to its building on the receiver.
+
+The production URL uses the public hostname directly, so normal DNS, SNI, and
+hostname verification apply. `FORWARD_TLS_HOSTNAME` is only needed when a
+different deployment deliberately uses a numeric IP URL with a certificate for
+a logical DNS name; in that mode the client connects to the IP without a DNS
+lookup while validating the configured certificate name.
 
 Run host-side tests:
 
