@@ -98,10 +98,12 @@ Examples:
 
 Generic HTTPS forwarding example:
 
-`examples/http_forward.ino` polls one Tuya device and POSTs a JSON envelope to
-`TINYTUYA_FORWARD_SERVER_URL`. It validates the server against the configured
-Caddy root CA and sends the receiver token in `X-ESP32-Token`. It is intentionally
-self-contained example code, not a library API. To try the receiver locally, run:
+`examples/http_forward.ino` polls one to eight Tuya devices and POSTs a JSON
+envelope for each device to `TINYTUYA_FORWARD_SERVER_URL`. Every envelope
+contains `gatewayId` and `deviceId`; the gateway ID and its individual token are
+also sent in `X-ESP32-Gateway` and `X-ESP32-Token`. The example validates the
+server against the configured Caddy root CA. It is intentionally self-contained
+example code, not a library API. To try the diagnostic receiver locally, run:
 
 ```bash
 python examples/tools/http_json_receiver.py --port 28080
@@ -113,10 +115,15 @@ For production, copy the public Caddy root certificate to
 ```text
 FORWARD_SERVER_URL=https://VPS_IP/tuya
 FORWARD_TLS_HOSTNAME=esp32-receiver.invalid
-FORWARD_TOKEN=replace_with_receiver_token
+FORWARD_GATEWAY_ID=esp32-6k
+FORWARD_TOKEN=replace_with_unique_gateway_token
 FORWARD_CA_CERT_FILE=certs/caddy-root-ca.crt
 FORWARD_INTERVAL_MS=30000
 ```
+
+Use a different `FORWARD_GATEWAY_ID`, token, and local `.env` for every ESP32.
+Additional `TUYA_DEVICE_ID_2` ... `TUYA_DEVICE_ID_8` entries are polled by the
+same gateway and therefore must all belong to its building on the receiver.
 
 Arduino-ESP32 2.x cannot validate an `iPAddress` subjectAltName. The forwarding
 client therefore connects to the IP in `FORWARD_SERVER_URL` while validating
