@@ -24,7 +24,13 @@ def parse_env(path):
 
 
 def c_string(value):
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    )
+    return '"' + escaped + '"'
 
 
 values = parse_env(ENV_FILE)
@@ -43,6 +49,8 @@ string_keys = {
     "TUYA_DEVICE_IP": "TINYTUYA_DEVICE_IP",
     "TUYA_LOCAL_KEY": "TINYTUYA_LOCAL_KEY",
     "FORWARD_SERVER_URL": "TINYTUYA_FORWARD_SERVER_URL",
+    "FORWARD_TLS_HOSTNAME": "TINYTUYA_FORWARD_TLS_HOSTNAME",
+    "FORWARD_TOKEN": "TINYTUYA_FORWARD_TOKEN",
 }
 
 for index in range(2, 9):
@@ -53,6 +61,15 @@ for index in range(2, 9):
 for env_key, define_name in string_keys.items():
     if env_key in values:
         lines.append(f"#define {define_name} {c_string(values[env_key])}")
+
+if "FORWARD_CA_CERT_FILE" in values:
+    cert_path = Path(values["FORWARD_CA_CERT_FILE"])
+    if not cert_path.is_absolute():
+        cert_path = ROOT / cert_path
+    cert = cert_path.read_text(encoding="utf-8")
+    if "-----BEGIN CERTIFICATE-----" not in cert:
+        raise ValueError(f"Invalid CA certificate: {cert_path}")
+    lines.append(f"#define TINYTUYA_FORWARD_CA_CERT {c_string(cert)}")
 
 numeric_keys = {
     "TUYA_PROTOCOL_VERSION": "TINYTUYA_PROTOCOL_VERSION",

@@ -96,22 +96,33 @@ Examples:
 - `examples/validate_device.ino`
 - `examples/http_forward.ino`
 
-Generic HTTP forwarding example:
+Generic HTTPS forwarding example:
 
 `examples/http_forward.ino` polls one Tuya device and POSTs a JSON envelope to
-`TINYTUYA_FORWARD_SERVER_URL`. It is intentionally self-contained example code,
-not a library API. To try it locally, run:
+`TINYTUYA_FORWARD_SERVER_URL`. It validates the server against the configured
+Caddy root CA and sends the receiver token in `X-ESP32-Token`. It is intentionally
+self-contained example code, not a library API. To try the receiver locally, run:
 
 ```bash
 python examples/tools/http_json_receiver.py --port 28080
 ```
 
-Then set these optional `.env` values:
+For production, copy the public Caddy root certificate to
+`certs/caddy-root-ca.crt`, then set these `.env` values:
 
 ```text
-FORWARD_SERVER_URL=http://192.168.1.100:28080/tuya
+FORWARD_SERVER_URL=https://VPS_IP/tuya
+FORWARD_TLS_HOSTNAME=esp32-receiver.invalid
+FORWARD_TOKEN=replace_with_receiver_token
+FORWARD_CA_CERT_FILE=certs/caddy-root-ca.crt
 FORWARD_INTERVAL_MS=30000
 ```
+
+Arduino-ESP32 2.x cannot validate an `iPAddress` subjectAltName. The forwarding
+client therefore connects to the IP in `FORWARD_SERVER_URL` while validating
+the Caddy certificate against `FORWARD_TLS_HOSTNAME`. This does not perform a
+DNS lookup. Configure Caddy to issue an internal certificate for the same
+logical hostname and to accept the IP-valued HTTP Host header.
 
 Run host-side tests:
 

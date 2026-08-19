@@ -1,6 +1,8 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <time.h>
 #include <tinytuya.h>
 #include "example_tuya_config.h"
 
@@ -12,8 +14,38 @@
 #define TINYTUYA_FORWARD_INTERVAL_MS 30000UL
 #endif
 
+#ifndef TINYTUYA_FORWARD_TLS_HOSTNAME
+#define TINYTUYA_FORWARD_TLS_HOSTNAME "esp32-receiver.invalid"
+#endif
+
+#ifndef TINYTUYA_FORWARD_TOKEN
+#define TINYTUYA_FORWARD_TOKEN ""
+#endif
+
+#ifndef TINYTUYA_FORWARD_CA_CERT
+#define TINYTUYA_FORWARD_CA_CERT ""
+#endif
+
 static const char *SSID = TINYTUYA_WIFI_SSID;
 static const char *PASS = TINYTUYA_WIFI_PASS;
+
+class ForwardTlsClient : public WiFiClientSecure {
+   public:
+    int connect(const char *host, uint16_t port) override {
+        IPAddress endpointIp;
+        if (endpointIp.fromString(host) &&
+            TINYTUYA_FORWARD_TLS_HOSTNAME[0] != '\0') {
+            return WiFiClientSecure::connect(
+                endpointIp,
+                port,
+                TINYTUYA_FORWARD_TLS_HOSTNAME,
+                TINYTUYA_FORWARD_CA_CERT,
+                nullptr,
+                nullptr);
+        }
+        return WiFiClientSecure::connect(host, port);
+    }
+};
 
 TinyTuya dev(TINYTUYA_DEVICE_ID, TINYTUYA_DEVICE_IP, TINYTUYA_LOCAL_KEY);
 uint32_t nextForwardMs = 0;
@@ -73,24 +105,71 @@ static bool buildPayload(const String &statusJson,
     return out.length() > 0;
 }
 
+static bool ensureClock(uint32_t timeoutMs) {
+    constexpr time_t MIN_VALID_TIME = 1700000000;
+    if (time(nullptr) >= MIN_VALID_TIME) return true;
+
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    uint32_t started = millis();
+    while (time(nullptr) < MIN_VALID_TIME && millis() - started < timeoutMs) {
+        delay(250);
+    }
+    if (time(nullptr) < MIN_VALID_TIME) {
+        Serial.println("NTP sync failed; cannot validate HTTPS certificate");
+        return false;
+    }
+    return true;
+}
+
 static bool postJson(const String &body) {
     if (TINYTUYA_FORWARD_SERVER_URL[0] == '\0') {
-        Serial.println("Set FORWARD_SERVER_URL in .env to enable HTTP forwarding.");
+        Serial.println("Set FORWARD_SERVER_URL in .env to enable HTTPS forwarding.");
+        return false;
+    }
+    if (!String(TINYTUYA_FORWARD_SERVER_URL).startsWith("https://")) {
+        Serial.println("FORWARD_SERVER_URL must use https://");
+        return false;
+    }
+    if (TINYTUYA_FORWARD_CA_CERT[0] == '\0') {
+        Serial.println("Set FORWARD_CA_CERT_FILE to the Caddy root CA certificate.");
+        return false;
+    }
+    if (TINYTUYA_FORWARD_TLS_HOSTNAME[0] == '\0') {
+        Serial.println("Set FORWARD_TLS_HOSTNAME to the Caddy certificate name.");
+        return false;
+    }
+    if (TINYTUYA_FORWARD_TOKEN[0] == '\0') {
+        Serial.println("Set FORWARD_TOKEN for X-ESP32-Token authentication.");
+        return false;
+    }
+    if (!ensureClock(15000UL)) {
         return false;
     }
 
+    ForwardTlsClient tlsClient;
+    tlsClient.setCACert(TINYTUYA_FORWARD_CA_CERT);
+
     HTTPClient http;
     http.setTimeout(5000);
-    if (!http.begin(TINYTUYA_FORWARD_SERVER_URL)) {
-        Serial.println("HTTP begin failed");
+    if (!http.begin(tlsClient, TINYTUYA_FORWARD_SERVER_URL)) {
+        Serial.println("HTTPS begin failed");
         return false;
     }
 
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-ESP32-Token", TINYTUYA_FORWARD_TOKEN);
     int code = http.POST(body);
+    if (code < 0) {
+        char tlsError[128] = {};
+        int tlsCode = tlsClient.lastError(tlsError, sizeof(tlsError));
+        Serial.printf("HTTPS error: http=%s tls=%d (%s)\n",
+                      HTTPClient::errorToString(code).c_str(),
+                      tlsCode,
+                      tlsError);
+    }
     http.end();
 
-    Serial.printf("HTTP POST code=%d bytes=%u\n", code, (unsigned)body.length());
+    Serial.printf("HTTPS POST code=%d bytes=%u\n", code, (unsigned)body.length());
     return code >= 200 && code < 300;
 }
 
