@@ -15,7 +15,7 @@
 #endif
 
 #ifndef TINYTUYA_FORWARD_TLS_HOSTNAME
-#define TINYTUYA_FORWARD_TLS_HOSTNAME "esp32-receiver.invalid"
+#define TINYTUYA_FORWARD_TLS_HOSTNAME ""
 #endif
 
 #ifndef TINYTUYA_FORWARD_GATEWAY_ID
@@ -174,11 +174,7 @@ static bool postJson(const String &body) {
         return false;
     }
     if (TINYTUYA_FORWARD_CA_CERT[0] == '\0') {
-        Serial.println("Set FORWARD_CA_CERT_FILE to the Caddy root CA certificate.");
-        return false;
-    }
-    if (TINYTUYA_FORWARD_TLS_HOSTNAME[0] == '\0') {
-        Serial.println("Set FORWARD_TLS_HOSTNAME to the Caddy certificate name.");
+        Serial.println("Set FORWARD_CA_CERT_FILE to the trusted root CA certificate.");
         return false;
     }
     if (TINYTUYA_FORWARD_TOKEN[0] == '\0') {

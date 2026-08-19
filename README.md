@@ -102,22 +102,23 @@ Generic HTTPS forwarding example:
 envelope for each device to `TINYTUYA_FORWARD_SERVER_URL`. Every envelope
 contains `gatewayId` and `deviceId`; the gateway ID and its individual token are
 also sent in `X-ESP32-Gateway` and `X-ESP32-Token`. The example validates the
-server against the configured Caddy root CA. It is intentionally self-contained
+server against the configured trusted root CA. It is intentionally self-contained
 example code, not a library API. To try the diagnostic receiver locally, run:
 
 ```bash
 python examples/tools/http_json_receiver.py --port 28080
 ```
 
-For production, copy the public Caddy root certificate to
-`certs/caddy-root-ca.crt`, then set these `.env` values:
+Production uses `148-253-213-23.sslip.io` with a public Let's Encrypt
+certificate. Download the official ISRG Root X1 PEM to
+`certs/isrg-root-x1.pem`, then set these `.env` values:
 
 ```text
-FORWARD_SERVER_URL=https://VPS_IP/tuya
-FORWARD_TLS_HOSTNAME=esp32-receiver.invalid
+FORWARD_SERVER_URL=https://148-253-213-23.sslip.io/tuya
+FORWARD_TLS_HOSTNAME=148-253-213-23.sslip.io
 FORWARD_GATEWAY_ID=esp32-6k
 FORWARD_TOKEN=replace_with_unique_gateway_token
-FORWARD_CA_CERT_FILE=certs/caddy-root-ca.crt
+FORWARD_CA_CERT_FILE=certs/isrg-root-x1.pem
 FORWARD_INTERVAL_MS=30000
 ```
 
@@ -125,11 +126,11 @@ Use a different `FORWARD_GATEWAY_ID`, token, and local `.env` for every ESP32.
 Additional `TUYA_DEVICE_ID_2` ... `TUYA_DEVICE_ID_8` entries are polled by the
 same gateway and therefore must all belong to its building on the receiver.
 
-Arduino-ESP32 2.x cannot validate an `iPAddress` subjectAltName. The forwarding
-client therefore connects to the IP in `FORWARD_SERVER_URL` while validating
-the Caddy certificate against `FORWARD_TLS_HOSTNAME`. This does not perform a
-DNS lookup. Configure Caddy to issue an internal certificate for the same
-logical hostname and to accept the IP-valued HTTP Host header.
+The production URL uses the public hostname directly, so normal DNS, SNI, and
+hostname verification apply. `FORWARD_TLS_HOSTNAME` is only needed when a
+different deployment deliberately uses a numeric IP URL with a certificate for
+a logical DNS name; in that mode the client connects to the IP without a DNS
+lookup while validating the configured certificate name.
 
 Run host-side tests:
 
